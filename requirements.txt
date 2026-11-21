@@ -1,0 +1,15 @@
+numpy
+pandas
+scipy
+matplotlib
+requests
+pyyaml
+tqdm
+joblib
+astropy
+lightkurve
+scikit-learn
+xgboost
+ipykernel
+# PyTorch: install separately with the command from https://pytorch.org/get-started/locally/
+# (CPU-only is fine to start; pick the CUDA build if you have an NVIDIA GPU)

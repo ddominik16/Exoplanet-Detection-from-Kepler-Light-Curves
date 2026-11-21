@@ -1,0 +1,17 @@
+name: astronet_baseline
+seed: 42
+
+# data
+global_bins: 2001
+local_bins: 201
+augment_time_flip: true
+
+# model
+dropout: 0.3
+
+# training
+batch_size: 64
+lr: 1.0e-4
+max_epochs: 100
+early_stopping_patience: 10
+pos_weight: auto   # auto = n_negative / n_positive on the train split

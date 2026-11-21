@@ -1,0 +1,19 @@
+# data and outputs (too big for git)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/processed/split.csv
+!data/raw/subset.csv
+runs/
+reports/figures/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# editors / OS
+.DS_Store
+Thumbs.db
