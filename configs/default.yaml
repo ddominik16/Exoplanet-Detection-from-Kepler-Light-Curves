@@ -1,17 +1,17 @@
-name: astronet_baseline
+name: two_branch
+model: two_branch        # two_branch | global_only | mlp
 seed: 42
 
-# data
-global_bins: 2001
-local_bins: 201
-augment_time_flip: true
+augment: true            # random time flip of the views
+clip: null               # e.g. 3.0 to clip extreme values in weak-signal views
 
-# model
 dropout: 0.3
+dense_width: 512
+dense_layers: 4
 
-# training
 batch_size: 64
 lr: 1.0e-4
+weight_decay: 0.0
 max_epochs: 100
-early_stopping_patience: 10
-pos_weight: auto   # auto = n_negative / n_positive on the train split
+patience: 15             # stop after this many epochs without a better validation AUC
+pos_weight: auto         # auto = n_negative / n_positive in the training split

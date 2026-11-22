@@ -40,9 +40,25 @@ python -m src.download lightcurves --workers 8   # light curves for the subset
 python -m src.download check --delete            # remove broken light curves, then re-run the line above
 python -m src.preprocess                         # global/local views -> data/processed/
 python -m src.dataset split                      # train/val/test split (once!)
-python -m src.train --config configs/default.yaml                # (to do)
+python -m src.train                              # train (configs/default.yaml), results in runs/<name>/
 python -m src.evaluate --run runs/<name>                         # (to do)
 ```
 
 Disk: each star is ~1 MB as `.npz` (raw FITS are deleted after conversion), so the 2,000-TCE subset
 needs roughly 2 GB. The full set (~12,000 stars) needs ~12 GB.
+
+## Training on Kaggle
+
+The same `src/train.py` runs on Kaggle; it finds the data under `/kaggle/input/` and writes to `/kaggle/working/runs/`.
+
+One-time setup:
+1. **Dataset:** kaggle.com > Datasets > New Dataset, upload `global.npy`, `local.npy`, `labels.csv`, `split.csv`
+   from `data/processed/`, name it e.g. `exo-det-views`, keep it private. After re-running preprocessing,
+   upload a new version of the same dataset.
+2. **GitHub token:** GitHub > Settings > Developer settings > Fine-grained tokens > Generate.
+   Repository access: only `exo-det`; permissions: Contents read-only.
+3. **Notebook:** kaggle.com > Code > New Notebook > File > Import Notebook > `kaggle/train_on_kaggle.ipynb`.
+   Then: Add Input > your dataset; Add-ons > Secrets > add `GITHUB_TOKEN`; Settings > Internet on, Accelerator GPU.
+   Put your GitHub username in the first code cell.
+
+Each time: push your code, run the notebook (or Save Version to run it in the background), download `runs/` from Output.

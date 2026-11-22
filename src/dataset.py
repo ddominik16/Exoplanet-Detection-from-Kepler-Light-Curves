@@ -12,6 +12,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+try:
+    import torch
+    from torch.utils.data import Dataset
+except ImportError:  # the split command works without PyTorch
+    torch = None
+    Dataset = object
+
 ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = ROOT / "data" / "processed"
 SUBSET_CSV = ROOT / "data" / "raw" / "subset.csv"
@@ -39,18 +46,41 @@ def load_split() -> pd.DataFrame:
     return pd.read_csv(SPLIT_CSV)
 
 
-class TCEDataset:  # TODO: subclass torch.utils.data.Dataset
-    """Returns (global_view [1, 2001], local_view [1, 201], label) as float tensors."""
+class TCEDataset(Dataset):
+    """(global_view [1, 2001], local_view [1, 201], label) for one split.
 
-    def __init__(self, split: str, augment: bool = False):
-        # TODO: load global.npy, local.npy, labels.csv, split.csv; keep rows of this split
-        self.augment = augment  # random time flip: view[..., ::-1]
+    data_dir holds global.npy, local.npy, labels.csv and split.csv (data/processed/ locally,
+    the attached dataset on Kaggle). With augment=True, views are randomly flipped in time
+    (a transit looks the same backwards), which doubles the effective training data.
+    """
+
+    def __init__(self, split: str, data_dir: Path = PROCESSED, augment: bool = False, clip: float | None = None):
+        data_dir = Path(data_dir)
+        labels = pd.read_csv(data_dir / "labels.csv")
+        splits = pd.read_csv(data_dir / "split.csv")
+        merged = labels.merge(splits, on=["kepid", "tce_plnt_num"], how="left", validate="one_to_one")
+        if merged.split.isna().any():
+            raise ValueError(f"{merged.split.isna().sum()} views have no split; re-run the split")
+        keep = (merged.split == split).to_numpy()
+
+        g = np.load(data_dir / "global.npy")[keep]
+        l = np.load(data_dir / "local.npy")[keep]
+        if clip is not None:
+            g, l = np.clip(g, -clip, clip), np.clip(l, -clip, clip)
+        self.g = torch.from_numpy(np.ascontiguousarray(g, dtype=np.float32)).unsqueeze(1)
+        self.l = torch.from_numpy(np.ascontiguousarray(l, dtype=np.float32)).unsqueeze(1)
+        self.y = torch.from_numpy(merged.label.to_numpy()[keep].astype(np.float32))
+        self.meta = merged[keep].reset_index(drop=True)
+        self.augment = augment
 
     def __len__(self) -> int:
-        raise NotImplementedError
+        return len(self.y)
 
     def __getitem__(self, i: int):
-        raise NotImplementedError
+        g, l = self.g[i], self.l[i]
+        if self.augment and torch.rand(1).item() < 0.5:
+            g, l = g.flip(-1), l.flip(-1)
+        return g, l, self.y[i]
 
 
 def main() -> None:
