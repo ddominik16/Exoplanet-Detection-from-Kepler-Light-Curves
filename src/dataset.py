@@ -85,7 +85,7 @@ class TCEDataset(Dataset):
     """
 
     def __init__(self, split: str, data_dir: Path = PROCESSED, augment: bool = False, clip: float | None = None,
-                 features: list[str] | None = None):
+                 features: list[str] | None = None, stats_dir: Path | None = None):
         data_dir = Path(data_dir)
         labels = pd.read_csv(data_dir / "labels.csv")
         splits = pd.read_csv(data_dir / "split.csv")
@@ -104,7 +104,11 @@ class TCEDataset(Dataset):
         self.meta = merged[keep].reset_index(drop=True)
         self.features = list(features or [])
         if self.features:
-            train_meta = merged[merged.split == "train"]
+            if stats_dir is not None and Path(stats_dir) != data_dir:
+                sl = pd.read_csv(Path(stats_dir) / "labels.csv").merge(pd.read_csv(Path(stats_dir) / "split.csv"), on=["kepid", "tce_plnt_num"])
+                train_meta = sl[sl.split == "train"]
+            else:
+                train_meta = merged[merged.split == "train"]
             self.s = torch.from_numpy(scalar_features(self.meta, train_meta, self.features))
         else:
             self.s = torch.zeros(len(self.y), 0)

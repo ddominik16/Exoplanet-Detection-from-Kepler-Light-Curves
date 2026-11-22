@@ -64,7 +64,15 @@ def train(cfg: dict, data_dir: Path, out_dir: Path, device: str) -> dict:
     set_seed(cfg["seed"])
     run_dir = out_dir / cfg["name"]
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
+    saved = dict(cfg)
+    if not str(data_dir).startswith(str(KAGGLE_INPUT)):
+        try:
+            saved["data_dir_local"] = str(Path(data_dir).resolve().relative_to(ROOT)).replace("\\", "/")
+        except ValueError:
+            pass
+    else:
+        saved["data_dir_kaggle"] = str(data_dir)
+    (run_dir / "config.yaml").write_text(yaml.safe_dump(saved, sort_keys=False))
 
     features = cfg.get("features") or []
     train_ds = TCEDataset("train", data_dir, augment=cfg["augment"], clip=cfg["clip"], features=features)

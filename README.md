@@ -42,7 +42,8 @@ python -m src.preprocess                         # global/local views -> data/pr
 python -m src.dataset split                      # train/val/test split (once!)
 python -m src.train                              # train (configs/default.yaml), results in runs/<name>/
 python -m src.train --config configs/views_plus_features.yaml   # views + TCE-table numbers
-python -m src.evaluate --run runs/<name>                         # (to do)
+python -m src.evaluate --runs <run> [<run> ...] [--vs <run> ...] --data-dir data/processed_full   # score / compare (val)
+python -m src.evaluate ... --split test --i-am-sure            # FINAL model only, once
 ```
 
 Disk: each star is ~1 MB as `.npz` (raw FITS are deleted after conversion), so the 2,000-TCE subset
