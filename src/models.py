@@ -1,5 +1,9 @@
 """Models: the two-branch CNN (AstroNet) and two simpler baselines.
 
+Every model can also take scalar features (n_scalars > 0): numbers from the TCE table such as depth and
+signal-to-noise, joined to the dense head. The views are normalised to a depth of -1, so without these
+the network cannot see how deep a dip really is.
+
     two_branch   global + local view, separate conv stacks, joined dense head   (main model)
     global_only  conv stack on the global view only                              (shows what the local view adds)
     mlp          dense layers on both views, flattened                           (shows what convolutions add)
@@ -44,35 +48,35 @@ def _n_out(branch: nn.Module, length: int) -> int:
 
 class TwoBranchCNN(nn.Module):
     def __init__(self, global_len: int = 2001, local_len: int = 201, dropout: float = 0.3,
-                 dense_width: int = 512, dense_layers: int = 4):
+                 dense_width: int = 512, dense_layers: int = 4, n_scalars: int = 0):
         super().__init__()
         self.g, self.l = global_branch(), local_branch()
-        n = _n_out(self.g, global_len) + _n_out(self.l, local_len)
+        n = _n_out(self.g, global_len) + _n_out(self.l, local_len) + n_scalars
         self.head = dense_head(n, dense_width, dense_layers, dropout)
 
-    def forward(self, g: torch.Tensor, l: torch.Tensor) -> torch.Tensor:
-        return self.head(torch.cat([self.g(g).flatten(1), self.l(l).flatten(1)], dim=1)).squeeze(1)
+    def forward(self, g: torch.Tensor, l: torch.Tensor, s: torch.Tensor) -> torch.Tensor:
+        return self.head(torch.cat([self.g(g).flatten(1), self.l(l).flatten(1), s], dim=1)).squeeze(1)
 
 
 class GlobalOnlyCNN(nn.Module):
     def __init__(self, global_len: int = 2001, local_len: int = 201, dropout: float = 0.3,
-                 dense_width: int = 512, dense_layers: int = 4):
+                 dense_width: int = 512, dense_layers: int = 4, n_scalars: int = 0):
         super().__init__()
         self.g = global_branch()
-        self.head = dense_head(_n_out(self.g, global_len), dense_width, dense_layers, dropout)
+        self.head = dense_head(_n_out(self.g, global_len) + n_scalars, dense_width, dense_layers, dropout)
 
-    def forward(self, g: torch.Tensor, l: torch.Tensor) -> torch.Tensor:
-        return self.head(self.g(g).flatten(1)).squeeze(1)
+    def forward(self, g: torch.Tensor, l: torch.Tensor, s: torch.Tensor) -> torch.Tensor:
+        return self.head(torch.cat([self.g(g).flatten(1), s], dim=1)).squeeze(1)
 
 
 class MLP(nn.Module):
     def __init__(self, global_len: int = 2001, local_len: int = 201, dropout: float = 0.3,
-                 dense_width: int = 512, dense_layers: int = 3):
+                 dense_width: int = 512, dense_layers: int = 3, n_scalars: int = 0):
         super().__init__()
-        self.head = dense_head(global_len + local_len, dense_width, dense_layers, dropout)
+        self.head = dense_head(global_len + local_len + n_scalars, dense_width, dense_layers, dropout)
 
-    def forward(self, g: torch.Tensor, l: torch.Tensor) -> torch.Tensor:
-        return self.head(torch.cat([g.flatten(1), l.flatten(1)], dim=1)).squeeze(1)
+    def forward(self, g: torch.Tensor, l: torch.Tensor, s: torch.Tensor) -> torch.Tensor:
+        return self.head(torch.cat([g.flatten(1), l.flatten(1), s], dim=1)).squeeze(1)
 
 
 MODELS = {"two_branch": TwoBranchCNN, "global_only": GlobalOnlyCNN, "mlp": MLP}

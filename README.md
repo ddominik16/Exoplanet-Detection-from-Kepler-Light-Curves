@@ -41,6 +41,7 @@ python -m src.download check --delete            # remove broken light curves, t
 python -m src.preprocess                         # global/local views -> data/processed/
 python -m src.dataset split                      # train/val/test split (once!)
 python -m src.train                              # train (configs/default.yaml), results in runs/<name>/
+python -m src.train --config configs/views_plus_features.yaml   # views + TCE-table numbers
 python -m src.evaluate --run runs/<name>                         # (to do)
 ```
 
@@ -61,4 +62,5 @@ One-time setup:
    Then: Add Input > your dataset; Add-ons > Secrets > add `GITHUB_TOKEN`; Settings > Internet on, Accelerator GPU.
    Put your GitHub username in the first code cell.
 
-Each time: push your code, run the notebook (or Save Version to run it in the background), download `runs/` from Output.
+Each time: push your code, run the notebook (or Save Version to run it in the background), then download `runs.zip`
+from Output and extract it into the project folder (so you get `Exo-Det/runs/<run name>/`, not `runs/runs/`).

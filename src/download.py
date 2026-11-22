@@ -7,6 +7,10 @@ Usage (run from the project root, with the environment activated):
     python -m src.download lightcurves --workers 8
     python -m src.download check --delete
 
+Full dataset (all ~15,700 labelled TCEs):
+    python -m src.download subset --all
+    python -m src.download lightcurves --subset data/raw/subset_full.csv --workers 8
+
 Each step skips work that is already done, so you can stop and restart at any time.
 """
 
@@ -41,6 +45,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw"
 TCE_CSV = RAW / "dr24_tce.csv"
 SUBSET_CSV = RAW / "subset.csv"
+FULL_CSV = RAW / "subset_full.csv"
 LC_DIR = RAW / "lightcurves"
 FITS_TMP = RAW / "_fits_tmp"
 
@@ -115,6 +120,15 @@ def make_subset(n: int = 2000, seed: int = 42, out: Path = SUBSET_CSV) -> pd.Dat
     print(f"Saved {len(sub)} TCEs from {sub.kepid.nunique()} stars to {out}")
     print(sub.av_training_set.value_counts().to_string())
     return sub
+
+
+def make_full(out: Path = FULL_CSV) -> pd.DataFrame:
+    """Every labelled TCE (PC, AFP, NTP), in its natural class ratio."""
+    df = load_labelled()
+    df.to_csv(out, index=False)
+    print(f"Saved {len(df)} TCEs from {df.kepid.nunique()} stars to {out}")
+    print(df.av_training_set.value_counts().to_string())
+    return df
 
 
 def _quarter_ok(flux: np.ndarray) -> bool:
@@ -213,6 +227,7 @@ def main() -> None:
     s = sub.add_parser("subset", help="make a balanced subset")
     s.add_argument("--n", type=int, default=2000)
     s.add_argument("--seed", type=int, default=42)
+    s.add_argument("--all", action="store_true", help="every labelled TCE -> data/raw/subset_full.csv")
     l = sub.add_parser("lightcurves", help="download light curves for the subset")
     l.add_argument("--workers", type=int, default=4)
     l.add_argument("--subset", type=Path, default=SUBSET_CSV)
@@ -223,7 +238,7 @@ def main() -> None:
     if a.cmd == "tce":
         download_tce_table()
     elif a.cmd == "subset":
-        make_subset(a.n, a.seed)
+        make_full() if a.all else make_subset(a.n, a.seed)
     elif a.cmd == "lightcurves":
         download_light_curves(a.subset, a.workers)
     elif a.cmd == "check":

@@ -15,3 +15,4 @@ weight_decay: 0.0
 max_epochs: 100
 patience: 15             # stop after this many epochs without a better validation AUC
 pos_weight: auto         # auto = n_negative / n_positive in the training split
+features: []             # TCE-table numbers next to the views, see configs/views_plus_features.yaml

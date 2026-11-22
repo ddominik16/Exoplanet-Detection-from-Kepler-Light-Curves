@@ -54,8 +54,8 @@ def predict(model, loader, device) -> tuple[np.ndarray, np.ndarray]:
     model.eval()
     probs, ys = [], []
     with torch.no_grad():
-        for g, l, y in loader:
-            probs.append(torch.sigmoid(model(g.to(device), l.to(device))).cpu().numpy())
+        for g, l, s, y in loader:
+            probs.append(torch.sigmoid(model(g.to(device), l.to(device), s.to(device))).cpu().numpy())
             ys.append(y.numpy())
     return np.concatenate(probs), np.concatenate(ys)
 
@@ -66,14 +66,16 @@ def train(cfg: dict, data_dir: Path, out_dir: Path, device: str) -> dict:
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
 
-    train_ds = TCEDataset("train", data_dir, augment=cfg["augment"], clip=cfg["clip"])
-    val_ds = TCEDataset("val", data_dir, augment=False, clip=cfg["clip"])
+    features = cfg.get("features") or []
+    train_ds = TCEDataset("train", data_dir, augment=cfg["augment"], clip=cfg["clip"], features=features)
+    val_ds = TCEDataset("val", data_dir, augment=False, clip=cfg["clip"], features=features)
     gen = torch.Generator().manual_seed(cfg["seed"])
     train_dl = DataLoader(train_ds, batch_size=cfg["batch_size"], shuffle=True, generator=gen)
     val_dl = DataLoader(val_ds, batch_size=256)
 
     model = build_model(cfg["model"], global_len=train_ds.g.shape[-1], local_len=train_ds.l.shape[-1],
-                        dropout=cfg["dropout"], dense_width=cfg["dense_width"], dense_layers=cfg["dense_layers"]).to(device)
+                        dropout=cfg["dropout"], dense_width=cfg["dense_width"], dense_layers=cfg["dense_layers"],
+                        n_scalars=len(features)).to(device)
     pos = train_ds.y.sum().item()
     pos_weight = (len(train_ds) - pos) / pos if cfg["pos_weight"] == "auto" else float(cfg["pos_weight"])
     loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight, device=device))
@@ -81,6 +83,7 @@ def train(cfg: dict, data_dir: Path, out_dir: Path, device: str) -> dict:
 
     print(f"model {cfg['model']}: {count_parameters(model):,} parameters  |  device {device}")
     print(f"train {len(train_ds)}  val {len(val_ds)}  |  planet share {pos / len(train_ds):.1%}  pos_weight {pos_weight:.2f}")
+    print(f"extra features: {', '.join(features) if features else 'none (views only)'}")
     print(f"data {data_dir}\n")
     print(f"{'epoch':>5} {'train loss':>10} {'val loss':>9} {'val AUC':>8} {'val AP':>7} {'time':>6}")
 
@@ -89,10 +92,10 @@ def train(cfg: dict, data_dir: Path, out_dir: Path, device: str) -> dict:
         t0 = time.time()
         model.train()
         total = 0.0
-        for g, l, y in train_dl:
-            g, l, y = g.to(device), l.to(device), y.to(device)
+        for g, l, s, y in train_dl:
+            g, l, s, y = g.to(device), l.to(device), s.to(device), y.to(device)
             opt.zero_grad()
-            loss = loss_fn(model(g, l), y)
+            loss = loss_fn(model(g, l, s), y)
             loss.backward()
             opt.step()
             total += loss.item() * len(y)
@@ -119,7 +122,7 @@ def train(cfg: dict, data_dir: Path, out_dir: Path, device: str) -> dict:
     val_ds.meta.assign(prob=p).to_csv(run_dir / "val_predictions.csv", index=False)
     summary = {"name": cfg["name"], "model": cfg["model"], "best_epoch": best_epoch,
                "val_auc": roc_auc_score(y, p), "val_ap": average_precision_score(y, p),
-               "parameters": count_parameters(model)}
+               "parameters": count_parameters(model), "features": features}
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     plot_history(pd.DataFrame(history), best_epoch, run_dir / "curves.png")
     print(f"\nbest epoch {best_epoch}: val AUC {summary['val_auc']:.4f}, val AP {summary['val_ap']:.4f}")

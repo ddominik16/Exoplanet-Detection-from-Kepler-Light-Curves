@@ -3,6 +3,7 @@
 Usage:
     python -m src.preprocess                 # all TCEs in data/raw/subset.csv
     python -m src.preprocess --limit 50      # quick test on 50 TCEs
+    python -m src.preprocess --subset data/raw/subset_full.csv --out-dir data/processed_full
 
 Output (data/processed/):
     global.npy   float32, N x 2001
@@ -141,7 +142,9 @@ def main() -> None:
     p.add_argument("--subset", type=Path, default=RAW / "subset.csv")
     p.add_argument("--limit", type=int, default=None, help="only the first N TCEs (for testing)")
     p.add_argument("--n-jobs", type=int, default=-1, help="parallel processes (-1 = all cores)")
+    p.add_argument("--out-dir", type=Path, default=OUT)
     a = p.parse_args()
+    out = a.out_dir
 
     tces = pd.read_csv(a.subset)
     if "label" not in tces:
@@ -163,19 +166,19 @@ def main() -> None:
     failed += [{"kepid": r.kepid, "tce_plnt_num": r.tce_plnt_num, "av_training_set": r.av_training_set,
                 "error": "no light curve"} for r in missing.itertuples()]
 
-    OUT.mkdir(parents=True, exist_ok=True)
-    np.save(OUT / "global.npy", np.stack([r["global"] for r in done]))
-    np.save(OUT / "local.npy", np.stack([r["local"] for r in done]))
+    out.mkdir(parents=True, exist_ok=True)
+    np.save(out / "global.npy", np.stack([r["global"] for r in done]))
+    np.save(out / "local.npy", np.stack([r["local"] for r in done]))
     keep = ["kepid", "tce_plnt_num", "av_training_set", "label", "tce_period", "tce_time0bk",
             "tce_duration", "tce_depth", "tce_model_snr", "tce_impact"]
-    pd.DataFrame([r["row"] for r in done])[keep].to_csv(OUT / "labels.csv", index=False)
-    pd.DataFrame(failed, columns=["kepid", "tce_plnt_num", "av_training_set", "error"]).to_csv(OUT / "failed.csv", index=False)
-    (OUT / "params.json").write_text(json.dumps(PARAMS, indent=2))
+    pd.DataFrame([r["row"] for r in done])[keep].to_csv(out / "labels.csv", index=False)
+    pd.DataFrame(failed, columns=["kepid", "tce_plnt_num", "av_training_set", "error"]).to_csv(out / "failed.csv", index=False)
+    (out / "params.json").write_text(json.dumps(PARAMS, indent=2))
 
-    print(f"\nSaved {len(done)} views to {OUT}")
+    print(f"\nSaved {len(done)} views to {out}")
     print(pd.DataFrame([r["row"] for r in done]).av_training_set.value_counts().to_string())
     if failed:
-        print(f"{len(failed)} failed -> data/processed/failed.csv")
+        print(f"{len(failed)} failed -> {out / 'failed.csv'}")
 
 
 if __name__ == "__main__":
