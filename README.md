@@ -36,8 +36,10 @@ If `conda` isn't recognised in the VS Code terminal, use the "Anaconda Prompt" o
 ```
 python -m src.download tce                       # labels (DR24 TCE table)
 python -m src.download subset --n 2000           # balanced subset to start with
-python -m src.download lightcurves --workers 4   # light curves for the subset
-python -m src.preprocess                         # views          (to do)
+python -m src.download lightcurves --workers 8   # light curves for the subset
+python -m src.download check --delete            # remove broken light curves, then re-run the line above
+python -m src.preprocess                         # global/local views -> data/processed/
+python -m src.dataset split                      # train/val/test split (once!)
 python -m src.train --config configs/default.yaml                # (to do)
 python -m src.evaluate --run runs/<name>                         # (to do)
 ```
