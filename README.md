@@ -48,6 +48,25 @@ python -m src.evaluate --run runs/<name>                         # (to do)
 Disk: each star is ~1 MB as `.npz` (raw FITS are deleted after conversion), so the 2,000-TCE subset
 needs roughly 2 GB. The full set (~12,000 stars) needs ~12 GB.
 
+## AstroNet's pre-computed views (all ~15,700 TCEs)
+
+Instead of downloading every light curve, use the views published with the AstroNet paper (~106 MB):
+https://storage.googleapis.com/kepler-ml/astronet/data/kepler/kepler-tce-tfrecords-20180220.tar.gz
+
+```
+mkdir data\raw\astronet
+tar -xvf $HOME\Downloads\kepler-tce-tfrecords-20180220.tar.gz -C data\raw\astronet
+python -m src.convert_astronet --inspect
+python -m src.convert_astronet
+python -m src.dataset split --subset data/processed_astronet/labels.csv --out-dir data/processed_astronet --keep data/processed/split.csv
+python -m src.convert_astronet --only data/raw/subset.csv --out-dir data/processed_astronet_2000
+copy data\processed\split.csv data\processed_astronet_2000\split.csv
+```
+
+`data/processed_astronet/` is the full dataset (your 2,000-signal stars keep their split).
+`data/processed_astronet_2000/` holds AstroNet's views of exactly your 2,000 signals with your split, to compare
+their preprocessing with yours. Train on either with `--data-dir`.
+
 ## Training on Kaggle
 
 The same `src/train.py` runs on Kaggle; it finds the data under `/kaggle/input/` and writes to `/kaggle/working/runs/`.

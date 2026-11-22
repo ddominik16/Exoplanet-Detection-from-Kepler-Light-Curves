@@ -10,6 +10,7 @@ Usage (run from the project root, with the environment activated):
 Full dataset (all ~15,700 labelled TCEs):
     python -m src.download subset --all
     python -m src.download lightcurves --subset data/raw/subset_full.csv --workers 8
+    python -m src.download fast --subset data/raw/subset_full.csv --workers 12     (same, skips the search step)
 
 Each step skips work that is already done, so you can stop and restart at any time.
 """
@@ -20,6 +21,7 @@ import argparse
 import io
 import shutil
 import sys
+import threading
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -154,11 +156,29 @@ def check_light_curves(delete: bool = False) -> None:
         print("Deleted. Run `python -m src.download lightcurves` again to re-download them.")
 
 
-def download_one(kepid: int, retries: int = 3) -> str:
-    """Download all long-cadence quarters for one star, stitch, save a small .npz, delete the FITS."""
+def save_stitched(lcs, out: Path) -> str:
+    """Drop broken quarters, stitch, save time/flux/flux_err as a small .npz."""
     import lightkurve as lk
 
-    out = LC_DIR / f"{kepid}.npz"
+    # Broken quarters would be inverted or blown up by the normalisation in stitch().
+    good = [q for q in lcs if _quarter_ok(q.flux.value)]
+    if not good:
+        return "no usable quarters"
+    lc = lk.LightCurveCollection(good).stitch().remove_nans()
+    np.savez_compressed(
+        out,
+        time=lc.time.value.astype(np.float64),
+        flux=lc.flux.value.astype(np.float32),
+        flux_err=lc.flux_err.value.astype(np.float32),
+    )
+    return "ok"
+
+
+def download_one(kepid: int, retries: int = 3, out_dir: Path = LC_DIR) -> str:
+    """Search MAST, download all long-cadence quarters for one star, stitch, save, delete the FITS."""
+    import lightkurve as lk
+
+    out = out_dir / f"{kepid}.npz"
     if out.exists():
         return "cached"
 
@@ -170,19 +190,7 @@ def download_one(kepid: int, retries: int = 3) -> str:
             )
             if len(search) == 0:
                 return "not found"
-            lcs = search.download_all(download_dir=str(tmp))
-            # Broken quarters would be inverted or blown up by the normalisation in stitch().
-            good = [q for q in lcs if _quarter_ok(q.flux.value)]
-            if not good:
-                return "no usable quarters"
-            lc = lk.LightCurveCollection(good).stitch().remove_nans()
-            np.savez_compressed(
-                out,
-                time=lc.time.value.astype(np.float64),
-                flux=lc.flux.value.astype(np.float32),
-                flux_err=lc.flux_err.value.astype(np.float32),
-            )
-            return "ok"
+            return save_stitched(search.download_all(download_dir=str(tmp)), out)
         except Exception as e:
             if attempt == retries:
                 return f"error: {e}"
@@ -192,16 +200,93 @@ def download_one(kepid: int, retries: int = 3) -> str:
     return "error"
 
 
-def download_light_curves(subset: Path = SUBSET_CSV, workers: int = 4) -> None:
-    LC_DIR.mkdir(parents=True, exist_ok=True)
-    kepids = sorted(pd.read_csv(subset).kepid.unique())
-    todo = [k for k in kepids if not (LC_DIR / f"{k}.npz").exists()]
-    log(f"{len(kepids)} stars in subset, {len(todo)} still to download")
+# Long-cadence file dates of Kepler quarters Q0-Q17 (from the archive's file names).
+QUARTER_STAMPS = [
+    "2009131105131", "2009166043257", "2009259160929", "2009350155506", "2010078095331", "2010174085026",
+    "2010265121752", "2010355172524", "2011073133259", "2011177032512", "2011271113734", "2012004120508",
+    "2012088054726", "2012179063303", "2012277125453", "2013011073258", "2013098041711", "2013131215648",
+]
+MAST_URL = ("https://mast.stsci.edu/api/v0.1/Download/file?uri=mast:KEPLER/url/missions/kepler/lightcurves/"
+            "{d}/{k}/kplr{k}-{stamp}_llc.fits")
+_local = threading.local()
+
+
+def _session() -> requests.Session:
+    if not hasattr(_local, "s"):
+        _local.s = requests.Session()
+    return _local.s
+
+
+def fetch_quarter(kepid: int, stamp: str, dest: Path, retries: int = 3) -> str:
+    """'ok', 'missing' (star not observed that quarter) or raises after retries."""
+    k = f"{kepid:09d}"
+    url = MAST_URL.format(d=k[:4], k=k, stamp=stamp)
+    for attempt in range(1, retries + 1):
+        try:
+            r = _session().get(url, timeout=120)
+            if r.status_code == 404:
+                return "missing"
+            r.raise_for_status()
+            body = r.content
+            if not body.startswith(b"SIMPLE"):
+                return "missing"
+            expected = r.headers.get("Content-Length")
+            if expected is not None and int(expected) != len(body):
+                raise IOError(f"truncated: {len(body)} of {expected} bytes")
+            dest.write_bytes(body)
+            return "ok"
+        except Exception:
+            if attempt == retries:
+                raise
+            time.sleep(3 * attempt)
+    return "missing"
+
+
+def download_one_fast(kepid: int, retries: int = 3, out_dir: Path = LC_DIR) -> str:
+    """Like download_one, but skips the MAST search: fetches the 18 quarter files by their known addresses."""
+    import lightkurve as lk
+
+    out = out_dir / f"{kepid}.npz"
+    if out.exists():
+        return "cached"
+    tmp = FITS_TMP / f"fast_{kepid}"
+    for attempt in range(1, retries + 1):
+        try:
+            tmp.mkdir(parents=True, exist_ok=True)
+            files = []
+            for stamp in QUARTER_STAMPS:
+                dest = tmp / f"{stamp}.fits"
+                if fetch_quarter(kepid, stamp, dest) == "ok":
+                    files.append(dest)
+            if not files:
+                return "not found"
+            lcs = [lk.read(str(f)) for f in files]
+            return save_stitched(lcs, out)
+        except Exception as e:
+            if attempt == retries:
+                return f"error: {e}"
+            time.sleep(5 * attempt)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    return "error"
+
+
+def download_light_curves(subset: Path = SUBSET_CSV, workers: int = 4, fast: bool = False,
+                          out_dir: Path = LC_DIR, kepids: list[int] | None = None, limit: int | None = None) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not kepids:
+        kepids = sorted(pd.read_csv(subset).kepid.unique())
+    todo = [k for k in kepids if not (out_dir / f"{k}.npz").exists()]
+    log(f"{len(kepids)} stars requested, {len(todo)} still to download" + (" (fast mode)" if fast else ""))
+    if limit:
+        todo = todo[:limit]
+        log(f"--limit: downloading only {len(todo)}")
+    worker = download_one_fast if fast else download_one
 
     failed = []
     start = time.time()
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(download_one, k): k for k in todo}
+        futures = {pool.submit(worker, k, 3, out_dir): k for k in todo}
         for i, f in enumerate(as_completed(futures), 1):
             k = futures[f]
             try:
@@ -215,6 +300,8 @@ def download_light_curves(subset: Path = SUBSET_CSV, workers: int = 4) -> None:
                 eta_h = (len(todo) - i) / max(per_min, 1e-9) / 60
                 log(f"  {i}/{len(todo)} done, {len(failed)} failed  ({per_min:.1f} stars/min, ~{eta_h:.1f} h left)")
 
+    if todo:
+        log(f"finished {len(todo)} stars in {(time.time() - start) / 60:.1f} min")
     if failed:
         pd.DataFrame(failed, columns=["kepid", "status"]).to_csv(RAW / "failed_downloads.csv", index=False)
         log(f"{len(failed)} failures written to data/raw/failed_downloads.csv (just re-run to retry)")
@@ -231,6 +318,12 @@ def main() -> None:
     l = sub.add_parser("lightcurves", help="download light curves for the subset")
     l.add_argument("--workers", type=int, default=4)
     l.add_argument("--subset", type=Path, default=SUBSET_CSV)
+    fa = sub.add_parser("fast", help="like 'lightcurves' but without the MAST search step")
+    fa.add_argument("--workers", type=int, default=8)
+    fa.add_argument("--subset", type=Path, default=SUBSET_CSV)
+    fa.add_argument("--kepids", type=int, nargs="*", default=None, help="only these stars")
+    fa.add_argument("--limit", type=int, default=None, help="only the first N missing stars")
+    fa.add_argument("--out-dir", type=Path, default=LC_DIR)
     c = sub.add_parser("check", help="find light curves broken by bad quarters")
     c.add_argument("--delete", action="store_true", help="delete them so they get re-downloaded")
     a = p.parse_args()
@@ -241,6 +334,8 @@ def main() -> None:
         make_full() if a.all else make_subset(a.n, a.seed)
     elif a.cmd == "lightcurves":
         download_light_curves(a.subset, a.workers)
+    elif a.cmd == "fast":
+        download_light_curves(a.subset, a.workers, fast=True, out_dir=a.out_dir, kepids=a.kepids, limit=a.limit)
     elif a.cmd == "check":
         check_light_curves(a.delete)
 

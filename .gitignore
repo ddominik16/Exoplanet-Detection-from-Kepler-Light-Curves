@@ -1,10 +1,14 @@
-# data and outputs (too big for git)
+# data and outputs (too big for git): only the small files needed to reproduce the splits are kept
 data/raw/*
 data/processed/*
+data/processed_full/*
+data/processed_astronet*/
 !data/raw/.gitkeep
 !data/processed/.gitkeep
-!data/processed/split.csv
 !data/raw/subset.csv
+!data/raw/subset_full.csv
+!data/processed/split.csv
+!data/processed_full/split.csv
 runs/
 reports/figures/
 
