@@ -1,12 +1,9 @@
 name: two_branch_features
-model: two_branch        # two_branch | global_only | mlp
+model: two_branch
 seed: 42
 
 augment: true
 clip: null
-
-# TCE-table numbers given to the dense layers next to the two views.
-# The views are normalised to depth -1, so these give back the information that removes.
 features: [tce_depth, tce_model_snr, tce_impact, tce_period, tce_duration]
 
 dropout: 0.3

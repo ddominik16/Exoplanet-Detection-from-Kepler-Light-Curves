@@ -1,16 +1,8 @@
-"""Turn each TCE into a global view (whole orbit) and a local view (zoomed on the transit).
+"""Turn each TCE into a global view (whole orbit, 2001 bins) and a local view (transit, 201 bins).
 
-Usage:
-    python -m src.preprocess                 # all TCEs in data/raw/subset.csv
-    python -m src.preprocess --limit 50      # quick test on 50 TCEs
     python -m src.preprocess --subset data/raw/subset_full.csv --out-dir data/processed_full
 
-Output (data/processed/):
-    global.npy   float32, N x 2001
-    local.npy    float32, N x 201
-    labels.csv   one row per view: kepid, tce_plnt_num, av_training_set, label, period, ...
-    failed.csv   TCEs that could not be processed, with the reason
-    params.json  settings used, so results can be reproduced
+Writes global.npy, local.npy, labels.csv, failed.csv and params.json to the output folder.
 """
 
 from __future__ import annotations

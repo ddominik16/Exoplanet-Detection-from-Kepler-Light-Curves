@@ -1,20 +1,11 @@
-"""Score saved models on any dataset and split; compare groups of models fairly.
+"""Score saved models (averaged into an ensemble) on a dataset split, optionally against a second group.
 
-Examples:
-    # validation score of the full-data views-only models (3 seeds, averaged = ensemble)
-    python -m src.evaluate --runs full_views full_views_seed1 full_views_seed2 --data-dir data/processed_full
+    python -m src.evaluate --runs A1 A2 A3 --vs B1 B2 B3 --data-dir data/processed_full
+    python -m src.evaluate --runs A1 A2 A3 --data-dir data/processed_full --split test --i-am-sure
 
-    # fair comparison: 2,000-signal models vs full-data models, on the same 1,574 validation signals
-    python -m src.evaluate --runs two_branch two_branch_seed1 two_branch_seed2 \\
-        --vs full_views full_views_seed1 full_views_seed2 --data-dir data/processed_full --name small_vs_full
-
-    # FINAL, once: the chosen model on the test set
-    python -m src.evaluate --runs full_views full_views_seed1 full_views_seed2 full_features full_features_seed1 \\
-        full_features_seed2 --data-dir data/processed_full --split test --i-am-sure --name final_test
-
-Each group's models are averaged (an ensemble). Reports AUC and AP with 95% bootstrap intervals, and accuracy,
-precision and recall at a threshold chosen on the VALIDATION split (never on the split being scored).
-Results go to runs/_eval/<name>/. Every test-set evaluation is logged in runs/_eval/TEST_LOG.txt.
+Reports AUC and AP with 95% bootstrap intervals, and accuracy, precision and recall at a threshold
+chosen on the validation split. Results go to runs/_eval/<name>/; test-set runs are logged in
+runs/_eval/TEST_LOG.txt.
 """
 
 from __future__ import annotations
@@ -47,8 +38,8 @@ def training_data_dir(run_dir: Path, cfg: dict) -> Path:
         return ROOT / cfg["data_dir_local"]
     val_keys = set(map(tuple, pd.read_csv(run_dir / "val_predictions.csv")[KEY].to_numpy()))
     for d in CANDIDATE_DATA:
-        if (d / "split.csv").exists():
-            s = pd.read_csv(d / "split.csv")
+        if (d / "split.csv").exists() and (d / "labels.csv").exists():
+            s = pd.read_csv(d / "split.csv").merge(pd.read_csv(d / "labels.csv")[KEY], on=KEY)
             if set(map(tuple, s[s.split == "val"][KEY].to_numpy())) == val_keys:
                 return d
     raise SystemExit(f"Can't tell which data {run_dir.name} was trained on; add 'data_dir_local:' to its config.yaml")

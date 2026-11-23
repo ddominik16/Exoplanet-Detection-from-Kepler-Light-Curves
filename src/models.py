@@ -1,12 +1,10 @@
-"""Models: the two-branch CNN (AstroNet) and two simpler baselines.
+"""The two-branch CNN (AstroNet architecture) and two simpler comparison models.
 
-Every model can also take scalar features (n_scalars > 0): numbers from the TCE table such as depth and
-signal-to-noise, joined to the dense head. The views are normalised to a depth of -1, so without these
-the network cannot see how deep a dip really is.
+    two_branch   global + local view, a conv stack each, joined dense head
+    global_only  conv stack on the global view only
+    mlp          dense layers on both views, no convolutions
 
-    two_branch   global + local view, separate conv stacks, joined dense head   (main model)
-    global_only  conv stack on the global view only                              (shows what the local view adds)
-    mlp          dense layers on both views, flattened                           (shows what convolutions add)
+n_scalars > 0 adds TCE-table numbers (depth, SNR, ...) to the dense head.
 """
 
 from __future__ import annotations

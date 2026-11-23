@@ -1,10 +1,9 @@
 """Train/val/test split (by star) and the PyTorch Dataset.
 
-Usage:
-    python -m src.dataset split           # creates data/processed/split.csv (once!)
+    python -m src.dataset split --subset data/raw/subset_full.csv --out-dir data/processed_full \\
+        --keep data/processed/split.csv
 
-Full dataset, keeping every star of the first split where it was (so old and new results compare fairly):
-    python -m src.dataset split --subset data/raw/subset_full.csv --out-dir data/processed_full --keep data/processed/split.csv
+--keep: stars of an earlier split keep their place, so results on both datasets stay comparable.
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ import pandas as pd
 try:
     import torch
     from torch.utils.data import Dataset
-except ImportError:  # the split command works without PyTorch
+except ImportError:
     torch = None
     Dataset = object
 

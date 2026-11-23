@@ -2,8 +2,9 @@ name: two_branch
 model: two_branch        # two_branch | global_only | mlp
 seed: 42
 
-augment: true            # random time flip of the views
-clip: null               # e.g. 3.0 to clip extreme values in weak-signal views
+augment: true
+clip: null
+features: []
 
 dropout: 0.3
 dense_width: 512
@@ -13,6 +14,5 @@ batch_size: 64
 lr: 1.0e-4
 weight_decay: 0.0
 max_epochs: 100
-patience: 15             # stop after this many epochs without a better validation AUC
-pos_weight: auto         # auto = n_negative / n_positive in the training split
-features: []             # TCE-table numbers next to the views, see configs/views_plus_features.yaml
+patience: 15
+pos_weight: auto

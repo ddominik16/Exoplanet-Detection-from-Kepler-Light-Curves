@@ -1,12 +1,9 @@
-"""Train a model on the preprocessed views. Works the same on your PC and on Kaggle.
+"""Train a model on the preprocessed views (locally or on Kaggle).
 
-Usage:
-    python -m src.train                                   # configs/default.yaml
-    python -m src.train --config configs/default.yaml --set model=mlp lr=3e-4
-    python -m src.train --data-dir /kaggle/input/... --out-dir /kaggle/working/runs
+    python -m src.train --config configs/default.yaml --data-dir data/processed_full --set name=views seed=1
 
-Writes runs/<name>/: config.yaml, best.pt, history.csv, val_predictions.csv, summary.json, curves.png
-Only the train and validation splits are used. The test split is for src/evaluate.py, once, at the end.
+Writes runs/<name>/: config.yaml, best.pt (best validation AUC), history.csv, val_predictions.csv,
+summary.json, curves.png. Uses only the train and validation splits.
 """
 
 from __future__ import annotations

@@ -1,8 +1,7 @@
-# data and outputs (too big for git): only the small files needed to reproduce the splits are kept
+# data and results are too big for git; only the TCE lists and splits are kept
 data/raw/*
 data/processed/*
 data/processed_full/*
-data/processed_astronet*/
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/raw/subset.csv
@@ -10,7 +9,6 @@ data/processed_astronet*/
 !data/processed/split.csv
 !data/processed_full/split.csv
 runs/
-reports/figures/
 
 # python
 __pycache__/
